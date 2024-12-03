@@ -1,0 +1,11 @@
+/.venv
+/.vscode
+/data
+/__pycache__
+**/__pycache__
+/models
+/prompts
+/knowledgebase
+/output
+/books
+/comments
