@@ -29,6 +29,9 @@ import tiktoken  # Ensure tiktoken is installed
 # ===============================
 import sys
 
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+
+
 # Constants
 MISTRAL_FT_MODEL = "ft:mistral-small-latest:08555483:20241130:eaf9fe5a"
 LOG_FILE_PATH = './output/conversation.log'
@@ -95,7 +98,7 @@ psychologist_model = ChatMistralAI(
             #model="open-mistral-nemo",
             model=MISTRAL_FT_MODEL,
             api_key=config.MISTRAL_API_KEY,
-            temperature=0.6,
+            temperature=0.3,
             top_p=0.7)
 
 user_model = ChatOpenAI(
@@ -111,20 +114,8 @@ USER_SYSINT = (
     "system",
     user_prompt,
 )
-# Define the function that calls the model
-def user_node(user_state: MessagesState):
-    new_output = user_model.invoke([USER_SYSINT] + user_state["messages"])
-    logger.info(f'User: {new_output.content}\n\n')
-    return user_state | {"messages": [("user", new_output.content)]}
 
-WELCOME_MSG = "Здравствуйте! Чем я могу Вам помочь?"
-PSYCHOLOGIST_SYSINT = (
-    "system",
-    assistant_prompt,
-)
-
-
-def get_response(text): 
+def extract_response(text): 
     response_text = text
     try:
         response_text = text.split('<response>')[1].split('</response>')[0]
@@ -136,13 +127,27 @@ def get_response(text):
     finally:
         return response_text
 
+# Define the function that calls the model
+def user_node(user_state: MessagesState):
+    if user_state["messages"]:
+        user_state["messages"][-1].content = extract_response(user_state["messages"][-1].content)
+    new_output = user_model.invoke([USER_SYSINT] + user_state["messages"])
+    logger.info(f'User: {new_output.content}\n\n')
+    return user_state | {"messages": [("user", new_output.content)]}
+    #return user_state | {"messages": [new_output]}
+
+WELCOME_MSG = "Здравствуйте! Чем я могу Вам помочь?"
+PSYCHOLOGIST_SYSINT = (
+    "system",
+    assistant_prompt,
+)
 
 def psychologist_node(psyco_state: MessagesState):
     if psyco_state["messages"]:
         new_output = psychologist_model.invoke([PSYCHOLOGIST_SYSINT] + psyco_state["messages"])
     else:
         new_output = AIMessage(content=WELCOME_MSG)
-    logger.info(f'Assistan: {get_response(new_output.content)}\n==============================================\n\n')
+    logger.info(f'Assistan: {extract_response(new_output.content)}\n==============================================\n\n')
     return psyco_state | {"messages": [new_output]}
 
 # ===============================
