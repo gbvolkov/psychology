@@ -12,11 +12,11 @@ from typing import List, Any, Optional, Dict, Tuple
 from langchain_openai import ChatOpenAI
 from langchain_mistralai import ChatMistralAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_community.chat_models.gigachat import GigaChat
-#from yandex_chain import YandexLLM
+from langchain_gigachat import GigaChat
 from langchain_community.llms import YandexGPT
-#from langchain_community.llms import YandexGPT
-
+#rom langchain.prompts import ChatPromptTemplate
+#from langchain_core.prompts import MessagesPlaceholder
+from langchain.schema import SystemMessage, HumanMessage
 
 from abc import abstractmethod
 from typing import List, Any, Optional, Dict, Tuple
@@ -41,8 +41,7 @@ class SimpleAssistant:
         logger.info("Initialized")
 
     def set_system_prompt(self, prompt: str):
-        self.system_prompt = prompt
-
+        self.system_prompt = SystemMessage(content=prompt)
 
     @abstractmethod
     def initialize(self):
@@ -55,7 +54,7 @@ class SimpleAssistant:
             logger.error("RAG chain not initialized")
             raise ValueError("Model or RAG chain not initialized.")
         try:
-            result = self.llm.invoke(query)
+            result = self.llm.invoke([self.system_prompt, HumanMessage(content=query)])
             return result.content
         except AttributeError as e:
             logger.error(f"AttributeError in ask_question: {str(e)}")
@@ -66,8 +65,8 @@ class SimpleAssistant:
 
 
 class SimpleAssistantGPT(SimpleAssistant):
-    def __init__(self, schema):
-        super().__init__(schema)
+    def __init__(self, system_prompt):
+        super().__init__(system_prompt)
     def initialize(self):
         return ChatOpenAI(
             model="gpt-4o-mini",
@@ -75,8 +74,8 @@ class SimpleAssistantGPT(SimpleAssistant):
 
 
 class SimpleAssistantMistralAI(SimpleAssistant):
-    def __init__(self, schema):
-        super().__init__(schema)
+    def __init__(self, system_prompt):
+        super().__init__(system_prompt)
     def initialize(self):
         return ChatMistralAI(
             model="mistral-large-latest",
@@ -84,8 +83,8 @@ class SimpleAssistantMistralAI(SimpleAssistant):
 
 
 class SimpleAssistantYA(SimpleAssistant):
-    def __init__(self, schema):
-        super().__init__(schema)
+    def __init__(self, system_prompt):
+        super().__init__(system_prompt)
     def initialize(self):
         return YandexGPT(
             api_key = config.YA_API_KEY, 
@@ -95,20 +94,21 @@ class SimpleAssistantYA(SimpleAssistant):
             )
 
 class SimpleAssistantSber(SimpleAssistant):
-    def __init__(self, schema):
-        super().__init__(schema)
+    def __init__(self, system_prompt):
+        super().__init__(system_prompt)
     def generate_auth_data(self, user_id, secret):
         return {"user_id": user_id, "secret": secret}
     def initialize(self):
         return GigaChat(
-            credentials=self.generate_auth_data(config.GIGA_CHAT_USER_ID, config.GIGA_CHAT_SECRET), 
+            credentials=config.GIGA_CHAT_AUTH, 
+            model="GigaChat-Pro",
             verify_ssl_certs=False,
             temperature=0.4,
             scope = config.GIGA_CHAT_SCOPE)
     
 class SimpleAssistantGemini(SimpleAssistant):
-    def __init__(self, system_prompt, kkb_path):
-        super().__init__(system_prompt, kkb_path)
+    def __init__(self, system_prompt):
+        super().__init__(system_prompt)
 
     def initialize(self):
         return ChatGoogleGenerativeAI(
@@ -119,7 +119,6 @@ class SimpleAssistantGemini(SimpleAssistant):
             top_k=40,
             max_output_tokens=1024
         )
-
 
 
 if __name__ == '__main__':
